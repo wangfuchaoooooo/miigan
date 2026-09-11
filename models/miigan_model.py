@@ -127,16 +127,16 @@ class MIIGAN(BaseModel):
         # First, G(A) should fake the discriminator
         fake_AB = torch.cat((self.real_A, self.fake_B), 1)
         out, tf_middle_out, vm_middle_out, diffs, prods = self.netD(fake_AB)
-        with torch.autograd.set_detect_anomaly(True):
-            self.loss_G_GAN = self.criterionGAN(out, True) + self.criterionGAN(tf_middle_out, True) + self.criterionGAN(vm_middle_out, True)
+        # with torch.autograd.set_detect_anomaly(True):
+        self.loss_G_GAN = self.criterionGAN(out, True) + self.criterionGAN(tf_middle_out, True) + self.criterionGAN(vm_middle_out, True)
 
-            # Second, G(A) = B
-            self.loss_G_L1 = self.criterionL1(self.fake_B, self.real_B) * self.opt.lambda_A
-            self.loss_ssim = (1 - self.ssim(self.fake_B.clone(), self.real_B.clone())) * self.opt.lambda_A
-            self.loss_G = self.loss_G_GAN + self.loss_G_L1 + self.loss_ssim
-            # self.loss_G = self.loss_G_GAN + self.loss_G_L1
+        # Second, G(A) = B
+        self.loss_G_L1 = self.criterionL1(self.fake_B, self.real_B) * self.opt.lambda_A
+        self.loss_ssim = (1 - self.ssim(self.fake_B, self.real_B)) * self.opt.lambda_A
+        self.loss_G = self.loss_G_GAN + self.loss_G_L1 + self.loss_ssim
+        # self.loss_G = self.loss_G_GAN + self.loss_G_L1
 
-            self.loss_G.backward()
+        self.loss_G.backward()
 
     def optimize_parameters(self):
         self.forward()
@@ -149,12 +149,19 @@ class MIIGAN(BaseModel):
         self.backward_G()
         self.optimizer_G.step()
 
+    # def get_current_errors(self):
+    #     return OrderedDict([('G_GAN', self.loss_G_GAN.data),
+    #                         ('G_L1', self.loss_G_L1),
+    #                         ('D_real', self.loss_D_real.data),
+    #                         ('D_fake', self.loss_D_fake.data)
+    #                         ])
     def get_current_errors(self):
-        return OrderedDict([('G_GAN', self.loss_G_GAN.data),
-                            ('G_L1', self.loss_G_L1),
-                            ('D_real', self.loss_D_real.data),
-                            ('D_fake', self.loss_D_fake.data)
-                            ])
+        return OrderedDict([
+            ('G_GAN', self.loss_G_GAN.detach().item()),
+            ('G_L1', self.loss_G_L1.detach().item()),
+            ('D_real', self.loss_D_real.detach().item()),
+            ('D_fake', self.loss_D_fake.detach().item())
+        ])
 
     @staticmethod
     def get_errors():
