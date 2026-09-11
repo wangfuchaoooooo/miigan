@@ -25,29 +25,27 @@ class Evalulate:
             batch_size=1,  # opt.batchSize,
             shuffle=False,
             num_workers=int(opt.nThreads))
+
+        self.lpips_obj = LPIPS(net='alex')
+        self.mssim_obj = MS_SSIM(channel=1, size_average=True, data_range=2.)
+        self.ssim_obj = my_ssim(channel=1, size_average=True, data_range=2.)
+        self.L1_obj = torch.nn.L1Loss()
         # TODO: No flip
 
     def eval(self, model, visualizer):
-        # model = create_model(opt)
-        # opt.no_html = True
-        # opt.display_id = 0
-        # create website
-        # test
-        mssim_obj = MS_SSIM(channel=1, size_average=True, data_range=2.)
-        ssim_obj = my_ssim(channel=1, size_average=True, data_range=2.)
-        lpips_obj = LPIPS(net='alex')
-        L1_obj = torch.nn.L1Loss()
+
         mssim, ssim, i, lpips, psnr, l1 = 0, 0, 0, 0, 0, 0
-        for i, data in enumerate(self.dataloader):
-            model.set_input(data)
-            model.test()
-            visualizer.add_errors(model.get_current_errors())
-            l1 = (l1 * i + L1_obj(model.real_B, model.fake_B).item()) / (i + 1)
-            mssim = (mssim * i + mssim_obj(model.real_B, model.fake_B).item()) / (i + 1)
-            ssim = (ssim * i + ssim_obj(model.real_B, model.fake_B).item()) / (i + 1)
-            lpips = (lpips * i + lpips_obj(model.real_B.cpu(), model.fake_B.cpu()).mean().item()) / (i + 1)
-            psnr = (psnr * i + tf.image.psnr(tf.convert_to_tensor(model.real_B.cpu().numpy()),
-                                             tf.convert_to_tensor(model.fake_B.cpu().numpy()), 2).numpy()) / (i + 1)
+        with torch.no_grad():
+            for i, data in enumerate(self.dataloader):
+                model.set_input(data)
+                model.test()
+                visualizer.add_errors(model.get_current_errors())
+                l1 = (l1 * i + self.L1_obj(model.real_B, model.fake_B).item()) / (i + 1)
+                mssim = (mssim * i + self.mssim_obj(model.real_B, model.fake_B).item()) / (i + 1)
+                ssim = (ssim * i + self.ssim_obj(model.real_B, model.fake_B).item()) / (i + 1)
+                lpips = (lpips * i + self.lpips_obj(model.real_B.cpu(), model.fake_B.cpu()).mean().item()) / (i + 1)
+                psnr = (psnr * i + tf.image.psnr(tf.convert_to_tensor(model.real_B.detach().cpu().numpy()),
+                                                 tf.convert_to_tensor(model.fake_B.detach().cpu().numpy()), 2).numpy()) / (i + 1)
         visualizer.append_error_hist(i, val=True)
 
         return ssim, mssim, l1, psnr, lpips
